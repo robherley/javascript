@@ -94,7 +94,20 @@ export class KubeConfig {
     }
 
     public loadFromFile(file: string) {
-        this.loadFromString(fs.readFileSync(file, 'utf8'));
+        const sameDir = path.dirname(path.resolve(file)) === __dirname;
+        if(!sameDir){
+            let config : any = yaml.safeLoad(fs.readFileSync(file, 'utf8'));
+            config.clusters = config.clusters.map(e => {
+                e.cluster['certificate-authority'] = path.resolve(
+                    path.dirname(path.resolve(file)), 
+                    e.cluster['certificate-authority']
+                )
+                return e;
+            });
+            this.loadFromString(yaml.safeDump(config))
+        } else {
+            this.loadFromString(fs.readFileSync(file, 'utf8'));
+        }
     }
 
     private bufferFromFileOrString(file: string, data: string) {
@@ -110,7 +123,6 @@ export class KubeConfig {
     private applyHTTPSOptions(opts: request.Options | https.RequestOptions) {
         const cluster = this.getCurrentCluster();
         const user = this.getCurrentUser();
-
         opts.ca = this.bufferFromFileOrString(cluster.caFile, cluster.caData);
         opts.cert = this.bufferFromFileOrString(user.certFile, user.certData);
         opts.key = this.bufferFromFileOrString(user.keyFile, user.keyData);
